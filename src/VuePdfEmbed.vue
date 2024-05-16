@@ -268,6 +268,7 @@ const render = async () => {
 
         pageScales.value[i] = pageScale
 
+        canvas.id = 'page' + pageNum
         canvas.style.width = cssWidth
         canvas.style.height = cssHeight
 
