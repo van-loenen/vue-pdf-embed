@@ -1,6 +1,6 @@
 {
-  "name": "vue-pdf-embed",
-  "version": "2.0.3",
+  "name": "@vanloenenconsultancy/vue-pdf-embed",
+  "version": "2.0.4",
   "description": "PDF embed component for Vue",
   "keywords": [
     "vue",
@@ -28,7 +28,6 @@
   "files": [
     "dist"
   ],
-  "repository": "github:hrynko/vue-pdf-embed",
   "scripts": {
     "prepare": "husky install && npm run build",
     "dev": "vite -c vite.config.dev.ts",
