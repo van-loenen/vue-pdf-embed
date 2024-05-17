@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [vue()],
   build: {
     lib: {
-      entry: new URL('./src/index.essential.ts', import.meta.url).pathname,
+      entry: './src/index.essential.ts',
       name: 'VuePdfEmbed',
       fileName: 'index.essential',
       formats: ['es'],
