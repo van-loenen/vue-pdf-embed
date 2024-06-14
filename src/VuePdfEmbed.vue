@@ -75,7 +75,7 @@ const emit = defineEmits<{
   (e: 'loading-failed', value: Error): void
   (e: 'password-requested', value: PasswordRequestParams): void
   (e: 'progress', value: OnProgressParameters): void
-  (e: 'rendered'): void
+  (e: 'rendered', value: PDFPageProxy | undefined): void
   (e: 'rendering-failed', value: Error): void
 }>()
 
@@ -236,6 +236,7 @@ const render = async () => {
   }
 
   try {
+    let _page: PDFPageProxy | undefined = undefined
     pageNums.value = props.page
       ? [props.page]
       : [...Array(doc.value.numPages + 1).keys()].slice(1)
@@ -244,6 +245,7 @@ const render = async () => {
     await Promise.all(
       pageNums.value.map(async (pageNum, i) => {
         const page = await doc.value!.getPage(pageNum)
+        _page = page
         const pageRotation =
           ((props.rotation % 90 === 0 ? props.rotation : 0) + page.rotate) % 360
         const [canvas, div1, div2] = Array.from(pageRefs.value[i].children) as [
@@ -312,7 +314,7 @@ const render = async () => {
       })
     )
 
-    emit('rendered')
+    emit('rendered', _page)
   } catch (e) {
     pageNums.value = []
     pageScales.value = []
