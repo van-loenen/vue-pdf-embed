@@ -9,7 +9,7 @@ const pdfSource =
 <template>
   <div>
     <a href="#page2">scroll to page 2</a>
-    <VuePdfEmbed :source="pdfSource" />
+    <VuePdfEmbed :source="pdfSource" annotation-layer />
   </div>
 </template>
 
