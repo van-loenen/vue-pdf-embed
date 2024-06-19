@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, watch } from 'vue'
-import { AnnotationLayer, renderTextLayer } from 'pdfjs-dist/legacy/build/pdf'
-import { PDFLinkService } from 'pdfjs-dist/web/pdf_viewer'
+import {
+  AnnotationLayer,
+  renderTextLayer,
+} from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { PDFLinkService } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type {
   OnProgressParameters,
   PDFDocumentProxy,
@@ -357,9 +360,10 @@ const renderPageAnnotationLayer = async (
     accessibilityManager: null,
     annotationCanvasMap: null,
     div: container,
-    l10n: null,
+    //l10n: null,
     page,
     viewport,
+    annotationEditorUIManager: {},
   }).render({
     annotations: await page.getAnnotations(),
     div: container,
@@ -389,7 +393,7 @@ const renderPageTextLayer = async (
     container,
     textContentSource: await page.getTextContent(),
     viewport,
-  }).promise
+  })?.promise
 }
 
 watch(

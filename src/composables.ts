@@ -13,7 +13,7 @@ import {
   type PDFDocumentLoadingTask,
   type PDFDocumentProxy,
 } from 'pdfjs-dist'
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf'
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 import type { PasswordRequestParams, Source } from './types'
 
