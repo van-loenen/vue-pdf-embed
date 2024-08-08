@@ -21,6 +21,7 @@ import {
   releaseChildCanvases,
 } from './utils'
 import { useVuePdfEmbed } from './composables'
+import ClipLoader from 'vue-spinner/src/ClipLoader.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -82,6 +83,7 @@ const emit = defineEmits<{
   (e: 'rendering-failed', value: Error): void
 }>()
 
+const loading = ref<Boolean>(true)
 const pageNums = shallowRef<number[]>([])
 const pageRefs = shallowRef<HTMLDivElement[]>([])
 const pageScales = ref<number[]>([])
@@ -316,7 +318,7 @@ const render = async () => {
         }
       })
     )
-
+    console.log('rendered')
     emit('rendered', _page)
   } catch (e) {
     pageNums.value = []
@@ -400,6 +402,7 @@ watch(
   doc,
   () => {
     if (doc.value) {
+      loading.value = false
       emit('loaded', doc.value)
     }
   },
@@ -427,6 +430,7 @@ watch(
   ],
   () => {
     if (doc.value) {
+      console.log('rendering')
       render()
     }
   },
@@ -446,7 +450,12 @@ defineExpose({
 
 <template>
   <div :id="id" ref="root" class="vue-pdf-embed">
-    <div v-for="(pageNum, i) in pageNums" :key="pageNum">
+    <ClipLoader
+      v-if="loading"
+      style="margin: auto; padding-top: 300px; padding-bottom: 300px"
+      color="blue"
+    />
+    <div v-for="(pageNum, i) in pageNums" v-else :key="pageNum">
       <slot name="before-page" :page="pageNum" />
 
       <div

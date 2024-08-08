@@ -32,6 +32,7 @@ export function useVuePdfEmbed({
   const docLoadingTask = shallowRef<PDFDocumentLoadingTask | null>(null)
 
   watchEffect(async () => {
+    console.log('loading...')
     const sourceValue = toValue(source)
 
     if (!sourceValue) {

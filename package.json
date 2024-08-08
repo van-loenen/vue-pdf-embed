@@ -66,6 +66,7 @@
     "vitest": "^0.34.6",
     "vue": "^3.3.0",
     "vue-eslint-parser": "^9.3.2",
+    "vue-spinner": "^1.0.4",
     "vue-tsc": "^1.8.22"
   },
   "peerDependencies": {
