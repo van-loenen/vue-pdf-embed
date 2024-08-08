@@ -449,13 +449,13 @@ defineExpose({
 </script>
 
 <template>
-  <div :id="id" ref="root" class="vue-pdf-embed">
-    <ClipLoader
-      v-if="loading"
-      style="margin: auto; padding-top: 300px; padding-bottom: 300px"
-      color="blue"
-    />
-    <div v-for="(pageNum, i) in pageNums" v-else :key="pageNum">
+  <ClipLoader
+    v-if="loading"
+    style="margin: auto; padding-top: 300px; padding-bottom: 300px"
+    color="blue"
+  />
+  <div v-else :id="id" ref="root" class="vue-pdf-embed">
+    <div v-for="(pageNum, i) in pageNums" :key="pageNum">
       <slot name="before-page" :page="pageNum" />
 
       <div
