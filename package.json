@@ -1,6 +1,6 @@
 {
   "name": "@vanloenenconsultancy/vue-pdf-embed",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "PDF embed component for Vue",
   "keywords": [
     "vue",
@@ -31,7 +31,6 @@
     "prepare": "husky install && npm run build",
     "dev": "vite -c vite.config.dev.ts",
     "build": "vite build && vite build -c vite.config.essential.ts --emptyOutDir false",
-    "postbuild": "vue-tsc -p tsconfig.build.json",
     "test": "vitest",
     "lint": "eslint . --ext .js,.ts,.vue --fix --ignore-path .gitignore",
     "format": "prettier . --write --ignore-path .gitignore"

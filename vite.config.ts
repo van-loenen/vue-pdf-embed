@@ -12,15 +12,15 @@ export const rollupOptions: RollupOptions = {
       'pdfjs-dist': 'pdfjsLib',
       vue: 'Vue',
     },
-    // exports: 'named',
-    // assetFileNames: (assetInfo) => {
-    //   switch (assetInfo.name) {
-    //     case 'style.css':
-    //       return 'style/index.css'
-    //     default:
-    //       return assetInfo.name as string
-    //   }
-    // },
+    exports: 'named',
+    assetFileNames: (assetInfo) => {
+      switch (assetInfo.name) {
+        case 'style.css':
+          return 'style/index.css'
+        default:
+          return assetInfo.name as string
+      }
+    },
     compact: true,
     inlineDynamicImports: true,
   },
