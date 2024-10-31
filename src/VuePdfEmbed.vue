@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, watch } from 'vue'
-import {
-  AnnotationLayer,
-  renderTextLayer,
-} from 'pdfjs-dist/legacy/build/pdf.mjs'
+import { AnnotationLayer, TextLayer } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { PDFLinkService } from 'pdfjs-dist/web/pdf_viewer.mjs'
 import type {
   OnProgressParameters,
@@ -85,9 +82,11 @@ const emit = defineEmits<{
 
 const loading = ref<Boolean>(true)
 const pageNums = shallowRef<number[]>([])
-const pageRefs = shallowRef<HTMLDivElement[]>([])
 const pageScales = ref<number[]>([])
 const root = shallowRef<HTMLDivElement | null>(null)
+
+let renderingController: { isAborted: boolean; promise: Promise<void> } | null =
+  null
 
 const { doc } = useVuePdfEmbed({
   onError: (e) => {
@@ -236,7 +235,7 @@ const print = async (dpi = 300, filename = '', allPages = false) => {
  * Renders the PDF document as canvas element(s) and additional layers.
  */
 const render = async () => {
-  if (!doc.value) {
+  if (!doc.value || renderingController?.isAborted) {
     return
   }
 
@@ -251,22 +250,24 @@ const render = async () => {
       pageNums.value.map(async (pageNum, i) => {
         const page = await doc.value!.getPage(pageNum)
         _page = page
+        if (renderingController?.isAborted) {
+          return
+        }
+
         const pageRotation =
           ((props.rotation % 90 === 0 ? props.rotation : 0) + page.rotate) % 360
-        const [canvas, div1, div2] = Array.from(pageRefs.value[i].children) as [
-          HTMLCanvasElement,
-          HTMLDivElement,
-          HTMLDivElement,
-        ]
+        const [canvas, div1, div2] = Array.from(
+          root.value!.getElementsByClassName('vue-pdf-embed__page')[i].children
+        ) as [HTMLCanvasElement, HTMLDivElement, HTMLDivElement]
         const isTransposed = !!((pageRotation / 90) % 2)
+        const viewWidth = page.view[2] - page.view[0]
+        const viewHeight = page.view[3] - page.view[1]
         const [actualWidth, actualHeight] = getPageDimensions(
-          isTransposed
-            ? page.view[2] / page.view[3]
-            : page.view[3] / page.view[2]
+          isTransposed ? viewWidth / viewHeight : viewHeight / viewWidth
         )
         const cssWidth = `${Math.floor(actualWidth)}px`
         const cssHeight = `${Math.floor(actualHeight)}px`
-        const pageWidth = isTransposed ? page.view[3] : page.view[2]
+        const pageWidth = isTransposed ? viewHeight : viewWidth
         const pageScale = actualWidth / pageWidth
         const viewport = page.getViewport({
           scale: pageScale,
@@ -276,54 +277,58 @@ const render = async () => {
         pageScales.value[i] = pageScale
 
         canvas.id = 'page' + pageNum
+        canvas.style.display = 'block'
         canvas.style.width = cssWidth
         canvas.style.height = cssHeight
 
-        if (div1) {
-          div1.style.width = isTransposed ? cssHeight : cssWidth
-          div1.style.height = isTransposed ? cssWidth : cssHeight
-        }
-
-        if (div2) {
-          div2.style.width = isTransposed ? cssHeight : cssWidth
-          div2.style.height = isTransposed ? cssWidth : cssHeight
-        }
-
-        await renderPage(
-          page,
-          viewport.clone({
-            scale: viewport.scale * window.devicePixelRatio * props.scale,
-          }),
-          canvas
-        )
-
-        if (props.textLayer) {
-          await renderPageTextLayer(
+        const renderTasks = [
+          renderPage(
             page,
             viewport.clone({
-              dontFlip: true,
+              scale: viewport.scale * window.devicePixelRatio * props.scale,
             }),
-            div1
+            canvas
+          ),
+        ]
+
+        if (props.textLayer) {
+          renderTasks.push(
+            renderPageTextLayer(
+              page,
+              viewport.clone({
+                dontFlip: true,
+              }),
+              div1
+            )
           )
         }
 
         if (props.annotationLayer) {
-          await renderPageAnnotationLayer(
-            page,
-            viewport.clone({
-              dontFlip: true,
-            }),
-            div2 || div1
+          renderTasks.push(
+            renderPageAnnotationLayer(
+              page,
+              viewport.clone({
+                dontFlip: true,
+              }),
+              div2 || div1
+            )
           )
         }
+
+        return Promise.all(renderTasks)
       })
     )
-    console.log('rendered')
-    emit('rendered', _page)
+    if (!renderingController?.isAborted) {
+      console.log('rendered')
+      emit('rendered', _page)
+    }
   } catch (e) {
     pageNums.value = []
     pageScales.value = []
-    emit('rendering-failed', e as Error)
+
+    if (!renderingController?.isAborted) {
+      emit('rendering-failed', e as Error)
+    }
   }
 }
 
@@ -361,16 +366,14 @@ const renderPageAnnotationLayer = async (
   new AnnotationLayer({
     accessibilityManager: null,
     annotationCanvasMap: null,
+    annotationEditorUIManager: null,
     div: container,
-    //l10n: null,
     page,
+    structTreeLayer: null,
     viewport,
-    annotationEditorUIManager: {},
   }).render({
     annotations: await page.getAnnotations(),
     div: container,
-    // @ts-expect-error: no downloading assumed
-    downloadManager: null,
     imageResourcesPath: props.imageResourcesPath,
     linkService: linkService.value!,
     page,
@@ -391,11 +394,11 @@ const renderPageTextLayer = async (
   container: HTMLElement
 ) => {
   emptyElement(container)
-  await renderTextLayer({
+  new TextLayer({
     container,
     textContentSource: await page.getTextContent(),
     viewport,
-  })?.promise
+  }).render()
 }
 
 watch(
@@ -404,16 +407,12 @@ watch(
     if (doc.value) {
       loading.value = false
       emit('loaded', doc.value)
+      // (newDoc) => {
+      //   if (newDoc) {
+      //     emit('loaded', newDoc)
     }
   },
   { immediate: true }
-)
-
-watch(
-  () => props.source,
-  () => {
-    releaseChildCanvases(root.value!)
-  }
 )
 
 watch(
@@ -428,17 +427,31 @@ watch(
     props.textLayer,
     props.width,
   ],
-  () => {
-    if (doc.value) {
-      console.log('rendering')
-      render()
+  // if (doc.value) {
+  //   console.log('rendering')
+  //   render()
+  async ([newDoc]) => {
+    if (newDoc) {
+      if (renderingController) {
+        renderingController.isAborted = true
+        await renderingController.promise
+      }
+
+      releaseChildCanvases(root.value)
+      renderingController = {
+        isAborted: false,
+        promise: render(),
+      }
+
+      await renderingController.promise
+      renderingController = null
     }
   },
   { immediate: true }
 )
 
 onBeforeUnmount(() => {
-  releaseChildCanvases(root.value!)
+  releaseChildCanvases(root.value)
 })
 
 defineExpose({
@@ -460,10 +473,10 @@ defineExpose({
 
       <div
         :id="id && `${id}-${pageNum}`"
-        ref="pageRefs"
         class="vue-pdf-embed__page"
         :style="{
           '--scale-factor': pageScales[i],
+          position: 'relative',
         }"
       >
         <canvas />
@@ -477,15 +490,3 @@ defineExpose({
     </div>
   </div>
 </template>
-
-<style lang="scss">
-.vue-pdf-embed {
-  &__page {
-    position: relative;
-
-    canvas {
-      display: block;
-    }
-  }
-}
-</style>

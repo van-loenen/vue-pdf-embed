@@ -9,18 +9,20 @@ export const rollupOptions: RollupOptions = {
   external: ['pdfjs-dist', 'vue'],
   output: {
     globals: {
+      'pdfjs-dist': 'pdfjsLib',
       vue: 'Vue',
     },
-    exports: 'named',
-    assetFileNames: (assetInfo) => {
-      switch (assetInfo.name) {
-        case 'style.css':
-          return 'style/index.css'
-        default:
-          return assetInfo.name as string
-      }
-    },
+    // exports: 'named',
+    // assetFileNames: (assetInfo) => {
+    //   switch (assetInfo.name) {
+    //     case 'style.css':
+    //       return 'style/index.css'
+    //     default:
+    //       return assetInfo.name as string
+    //   }
+    // },
     compact: true,
+    inlineDynamicImports: true,
   },
 }
 
@@ -30,16 +32,16 @@ export default defineConfig({
       hook: 'writeBundle',
       targets: Object.entries({
         textLayer: [
-          [0, 116],
-          [1835, 1845],
+          [2936, 2945],
+          [441, 568],
         ],
         annotationLayer: [
-          [118, 486],
-          [1835, 1845],
+          [2936, 2945],
+          [569, 933],
         ],
       }).map(([key, ranges]) => ({
         src: 'node_modules/pdfjs-dist/web/pdf_viewer.css',
-        dest: 'dist/style',
+        dest: 'dist/styles',
         rename: `${key}.css`,
         transform: (contents) => {
           const lines = contents.toString().split('\n')

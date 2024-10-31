@@ -2,20 +2,21 @@ import {
   onBeforeUnmount,
   shallowRef,
   toValue,
+  watch,
   watchEffect,
   type ComputedRef,
   type MaybeRef,
   type ShallowRef,
 } from 'vue'
-import {
-  PasswordResponses,
-  type OnProgressParameters,
-  type PDFDocumentLoadingTask,
-  type PDFDocumentProxy,
+import { PasswordResponses, getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
+import type {
+  OnProgressParameters,
+  PDFDocumentLoadingTask,
+  PDFDocumentProxy,
 } from 'pdfjs-dist'
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 import type { PasswordRequestParams, Source } from './types'
+import { isDocument } from './utils'
 
 export function useVuePdfEmbed({
   onError,
@@ -39,7 +40,7 @@ export function useVuePdfEmbed({
       return
     }
 
-    if (Object.prototype.hasOwnProperty.call(sourceValue, '_pdfInfo')) {
+    if (isDocument(sourceValue)) {
       doc.value = sourceValue as PDFDocumentProxy
       return
     }
@@ -77,6 +78,10 @@ export function useVuePdfEmbed({
     }
   })
 
+  watch(doc, (_, oldDoc) => {
+    oldDoc?.destroy()
+  })
+
   onBeforeUnmount(() => {
     if (docLoadingTask.value?.onPassword) {
       // @ts-expect-error: onPassword must be reset
@@ -86,7 +91,10 @@ export function useVuePdfEmbed({
       // @ts-expect-error: onProgress must be reset
       docLoadingTask.value.onProgress = null
     }
-    doc.value?.destroy()
+    docLoadingTask.value?.destroy()
+    if (!isDocument(toValue(source))) {
+      doc.value?.destroy()
+    }
   })
 
   return {
