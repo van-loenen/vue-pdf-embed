@@ -16,7 +16,7 @@ export const rollupOptions: RollupOptions = {
     assetFileNames: (assetInfo) => {
       switch (assetInfo.name) {
         case 'style.css':
-          return 'style/index.css'
+          return 'styles/index.css'
         default:
           return assetInfo.name as string
       }
