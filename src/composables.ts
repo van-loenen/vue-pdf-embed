@@ -49,17 +49,18 @@ export function useVuePdfEmbed({
     }
 
     try {
-      if (typeof sourceValue === "string" && useCookiesAuthValue) {
+      //if (useCookiesAuthValue) {
+        console.log('using cookie auth')
         let options: DocumentInitParameters = {}
         options.withCredentials = true
         options.url = sourceValue
 
         docLoadingTask.value = getDocument(options)
-      } else {
-        docLoadingTask.value = getDocument(
-          sourceValue as Parameters<typeof getDocument>[0]
-        )
-      }
+      // } else {
+      //   docLoadingTask.value = getDocument(
+      //     sourceValue as Parameters<typeof getDocument>[0]
+      //   )
+      // }
 
       if (onPasswordRequest) {
         docLoadingTask.value!.onPassword = (

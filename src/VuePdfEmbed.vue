@@ -104,6 +104,7 @@ const { doc } = useVuePdfEmbed({
     emit('progress', progressParams)
   },
   source: toRef(props, 'source'),
+  useCookiesAuth: props.useCookies
 })
 
 const linkService = computed(() => {
