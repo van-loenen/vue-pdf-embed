@@ -56,6 +56,10 @@ const props = withDefaults(
      */
     source: Source
     /**
+     * Whether to send cookies with a URL source.
+     */
+    useCookies?: boolean
+    /**
      * Whether to enable a text layer.
      */
     textLayer?: boolean

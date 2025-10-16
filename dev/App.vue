@@ -11,7 +11,7 @@ const pdfSource =
     <a href="#page2">scroll to page 2</a>
 
     <VuePdfEmbed
-      source="https://s29.q4cdn.com/175625835/files/doc_downloads/test.pdf"
+      source="file:///Users/joshuacampbell/Downloads/Untitled%201.pdf"
       annotation-layer
     />
     <VuePdfEmbed :source="pdfSource" annotation-layer />

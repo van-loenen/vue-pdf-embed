@@ -17,24 +17,27 @@ import type {
 
 import type { PasswordRequestParams, Source } from './types'
 import { isDocument } from './utils'
+import type { DocumentInitParameters } from 'pdfjs-dist/types/src/display/api'
 
 export function useVuePdfEmbed({
   onError,
   onPasswordRequest,
   onProgress,
   source,
+  useCookiesAuth
 }: {
   onError?: (e: Error) => unknown
   onPasswordRequest?: (passwordRequestParams: PasswordRequestParams) => unknown
   onProgress?: (progressParams: OnProgressParameters) => unknown
-  source: ComputedRef<Source> | MaybeRef<Source> | ShallowRef<Source>
+  source: ComputedRef<Source> | MaybeRef<Source> | ShallowRef<Source>,
+  useCookiesAuth: MaybeRef<boolean>
 }) {
   const doc = shallowRef<PDFDocumentProxy | null>(null)
   const docLoadingTask = shallowRef<PDFDocumentLoadingTask | null>(null)
 
   watchEffect(async () => {
-    console.log('loading...')
     const sourceValue = toValue(source)
+    const useCookiesAuthValue = toValue(useCookiesAuth)
 
     if (!sourceValue) {
       return
@@ -46,9 +49,17 @@ export function useVuePdfEmbed({
     }
 
     try {
-      docLoadingTask.value = getDocument(
-        sourceValue as Parameters<typeof getDocument>[0]
-      )
+      if (typeof sourceValue === "string" && useCookiesAuthValue) {
+        let options: DocumentInitParameters = {}
+        options.withCredentials = true
+        options.url = sourceValue
+
+        docLoadingTask.value = getDocument(options)
+      } else {
+        docLoadingTask.value = getDocument(
+          sourceValue as Parameters<typeof getDocument>[0]
+        )
+      }
 
       if (onPasswordRequest) {
         docLoadingTask.value!.onPassword = (

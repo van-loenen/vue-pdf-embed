@@ -1,6 +1,6 @@
 {
   "name": "@vanloenenconsultancy/vue-pdf-embed",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "description": "PDF embed component for Vue",
   "keywords": [
     "vue",
@@ -36,37 +36,37 @@
     "format": "prettier . --write --ignore-path .gitignore"
   },
   "dependencies": {
-    "pdfjs-dist": "^4.7.76"
+    "pdfjs-dist": "^5.4.296"
   },
   "devDependencies": {
-    "@tsconfig/node20": "^20.1.4",
+    "@tsconfig/node20": "^20.1.6",
     "@types/clean-css": "^4.2.11",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "@vitejs/plugin-vue": "^4.5.0",
+    "@vitejs/plugin-vue": "^5.2.4",
     "@vue/eslint-config-typescript": "^13.0.0",
     "@vue/test-utils": "^2.4.6",
-    "@vue/tsconfig": "^0.5.1",
+    "@vue/tsconfig": "^0.8.1",
     "clean-css": "^5.3.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-prettier": "^5.5.4",
     "eslint-plugin-vue": "^9.30.0",
     "happy-dom": "^15.7.4",
-    "husky": "^9.1.6",
+    "husky": "^9.1.7",
     "lint-staged": "^15.2.10",
-    "prettier": "^3.3.3",
+    "prettier": "^3.6.2",
     "rollup-plugin-copy": "^3.5.0",
-    "sass": "^1.80.5",
-    "typescript": "^5.6.3",
-    "vite": "^5.4.10",
-    "vitest": "^2.1.4",
-    "vue": "^3.5.12",
-    "vue-eslint-parser": "^9.4.3",
-    "vue-tsc": "^2.1.10",
+    "sass": "^1.93.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10",
+    "vitest": "^3.2.4",
+    "vue": "^3.5.22",
+    "vue-eslint-parser": "^10.2.0",
+    "vue-tsc": "^3.1.1",
     "vue-spinner": "^1.0.4"
   },
   "peerDependencies": {
-    "vue": "^3.3.0"
+    "vue": "^3.5.22"
   }
 }
