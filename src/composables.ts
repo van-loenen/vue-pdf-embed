@@ -50,7 +50,6 @@ export function useVuePdfEmbed({
 
     try {
       //if (useCookiesAuthValue) {
-        console.log('using cookie auth')
         let options: DocumentInitParameters = {}
         options.withCredentials = true
         options.url = sourceValue

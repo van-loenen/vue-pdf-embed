@@ -324,7 +324,6 @@ const render = async () => {
       })
     )
     if (!renderingController?.isAborted) {
-      console.log('rendered')
       emit('rendered', _page)
     }
   } catch (e) {
@@ -432,9 +431,6 @@ watch(
     props.textLayer,
     props.width,
   ],
-  // if (doc.value) {
-  //   console.log('rendering')
-  //   render()
   async ([newDoc]) => {
     if (newDoc) {
       if (renderingController) {
