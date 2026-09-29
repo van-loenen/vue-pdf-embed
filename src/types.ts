@@ -1,8 +1,15 @@
 import { getDocument, type PDFDocumentProxy } from 'pdfjs-dist'
 
-export type Source = Parameters<typeof getDocument>[0] | PDFDocumentProxy | null
+type DocumentInitParameters = NonNullable<Parameters<typeof getDocument>[0]>
+
+export type Source =
+  | DocumentInitParameters
+  | NonNullable<DocumentInitParameters['data']>
+  | NonNullable<DocumentInitParameters['url']>
+  | PDFDocumentProxy
+  | null
 
 export type PasswordRequestParams = {
-  callback: Function
+  callback: (password: unknown) => void
   isWrongPassword: boolean
 }

@@ -1,3 +1,5 @@
+import type { PDFDocumentProxy } from 'pdfjs-dist'
+
 // @internal
 export function addPrintStyles(
   iframe: HTMLIFrameElement,
@@ -15,9 +17,14 @@ export function addPrintStyles(
     }
     canvas {
       width: 100%;
-      page-break-after: always;
       page-break-before: avoid;
+      break-before: avoid;
       page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    canvas:not(:last-child) {
+      page-break-after: always;
+      break-after: page;
     }
   `
   iframe.contentWindow!.document.head.appendChild(style)
@@ -45,7 +52,7 @@ export function createPrintIframe(
 // @internal
 export function downloadPdf(data: Uint8Array, filename: string) {
   const url = URL.createObjectURL(
-    new Blob([data], {
+    new Blob([data as BlobPart], {
       type: 'application/pdf',
     })
   )
@@ -69,15 +76,44 @@ export function emptyElement(el?: HTMLElement | null) {
 }
 
 // @internal
-export function releaseChildCanvases(el?: HTMLElement | null) {
-  el?.querySelectorAll('canvas').forEach((canvas: HTMLCanvasElement) => {
-    canvas.width = 1
-    canvas.height = 1
-    canvas.getContext('2d')?.clearRect(0, 0, 1, 1)
-  })
+export function isCancellationError(e: unknown): boolean {
+  return (
+    e instanceof Error &&
+    (e.name === 'AbortException' || e.name === 'RenderingCancelledException')
+  )
 }
 
 // @internal
-export function isDocument(document: unknown) {
-  return Object.prototype.hasOwnProperty.call(document, '_pdfInfo')
+export function isDocument(doc: unknown): doc is PDFDocumentProxy {
+  return doc ? Object.prototype.hasOwnProperty.call(doc, '_pdfInfo') : false
+}
+
+// @internal
+export function releaseCanvas(canvas: HTMLCanvasElement) {
+  canvas.width = 1
+  canvas.height = 1
+  canvas.getContext('2d')?.clearRect(0, 0, 1, 1)
+}
+
+// @internal
+export function releaseChildCanvases(el?: HTMLElement | null) {
+  el?.querySelectorAll('canvas').forEach(releaseCanvas)
+}
+
+// @internal
+export const runCancellableTask = async (
+  start: () => Promise<unknown>,
+  cancel: () => void,
+  signal: AbortSignal
+) => {
+  signal.addEventListener('abort', cancel, { once: true })
+  try {
+    await start()
+  } catch (e) {
+    if (!isCancellationError(e)) {
+      throw e
+    }
+  } finally {
+    signal.removeEventListener('abort', cancel)
+  }
 }

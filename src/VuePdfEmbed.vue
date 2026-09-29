@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, watch } from 'vue'
 import { AnnotationLayer, TextLayer } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { PDFLinkService } from 'pdfjs-dist/web/pdf_viewer.mjs'
+import {
+  EventBus,
+  PDFLinkService,
+  type PDFFindController,
+} from 'pdfjs-dist/legacy/web/pdf_viewer.mjs'
 import type {
   OnProgressParameters,
   PDFDocumentProxy,
@@ -11,14 +15,14 @@ import type {
 
 import type { PasswordRequestParams, Source } from './types'
 import {
-  addPrintStyles,
-  createPrintIframe,
-  downloadPdf,
   emptyElement,
+  isCancellationError,
   releaseChildCanvases,
-} from './utils'
-import { useVuePdfEmbed } from './composables'
+  runCancellableTask
+} from './internal/utils'
 import ClipLoader from 'vue-spinner/src/ClipLoader.vue'
+import { TextHighlighter } from './internal/highlighter'
+import { usePdfDocument } from './composables'
 
 const props = withDefaults(
   defineProps<{
@@ -27,12 +31,22 @@ const props = withDefaults(
      */
     annotationLayer?: boolean
     /**
+     * Find controller for highlighting text matches. Requires the text layer
+     * to be enabled.
+     */
+    findController?: PDFFindController
+    /**
+     * Whether to render interactive form fields (AcroForm). Requires the
+     * annotation layer to be enabled.
+     */
+    forms?: boolean
+    /**
      * Desired page height.
      */
     height?: number
     /**
      * Root element identifier (inherited by page containers with page number
-     * postfixes).
+     * suffixes).
      */
     id?: string
     /**
@@ -40,15 +54,25 @@ const props = withDefaults(
      */
     imageResourcesPath?: string
     /**
-     * Number of the page to display.
+     * Document navigation service.
      */
-    page?: number
+    linkService?: PDFLinkService
+    /**
+     * Whether to scroll the selected search match into view. Defaults to
+     * `true`.
+     */
+    matchScrolling?: boolean
+    /**
+     * Page number(s) to display.
+     */
+    page?: number | number[]
     /**
      * Desired page rotation angle.
      */
     rotation?: number
     /**
-     * Desired ratio of canvas size to document size.
+     * Multiplier for the canvas rendering resolution, controlling the
+     * sharpness of the rendered page.
      */
     scale?: number
     /**
@@ -69,6 +93,7 @@ const props = withDefaults(
     width?: number
   }>(),
   {
+    matchScrolling: true,
     rotation: 0,
     scale: 1,
   }
@@ -88,11 +113,9 @@ const loading = ref<Boolean>(true)
 const pageNums = shallowRef<number[]>([])
 const pageScales = ref<number[]>([])
 const root = shallowRef<HTMLDivElement | null>(null)
+let highlighters: TextHighlighter[] = []
 
-let renderingController: { isAborted: boolean; promise: Promise<void> } | null =
-  null
-
-const { doc } = useVuePdfEmbed({
+const { doc, download, print } = usePdfDocument({
   onError: (e) => {
     pageNums.value = []
     emit('loading-failed', e)
@@ -110,9 +133,11 @@ const { doc } = useVuePdfEmbed({
 const linkService = computed(() => {
   if (!doc.value || !props.annotationLayer) {
     return null
+  } else if (props.linkService) {
+    return props.linkService
   }
 
-  const service = new PDFLinkService()
+  const service = new PDFLinkService({ eventBus: new EventBus() })
   service.setDocument(doc.value)
   service.setViewer({
     scrollPageIntoView: ({ pageNumber }: { pageNumber: number }) => {
@@ -121,23 +146,6 @@ const linkService = computed(() => {
   })
   return service
 })
-
-/**
- * Downloads the PDF document.
- * @param filename - Predefined filename to save.
- */
-const download = async (filename: string) => {
-  if (!doc.value) {
-    return
-  }
-
-  const data = await doc.value.getData()
-  const metadata = await doc.value.getMetadata()
-  const suggestedFilename =
-    // @ts-expect-error: contentDispositionFilename is not typed
-    filename ?? metadata.contentDispositionFilename ?? ''
-  downloadPdf(data, suggestedFilename)
-}
 
 /**
  * Returns an array of the actual page width and height based on props and
@@ -160,94 +168,23 @@ const getPageDimensions = (ratio: number): [number, number] => {
 }
 
 /**
- * Prints a PDF document via the browser interface.
- * @param dpi - Print resolution.
- * @param filename - Predefined filename to save.
- * @param allPages - Whether to ignore the page prop and print all pages.
- */
-const print = async (dpi = 300, filename = '', allPages = false) => {
-  if (!doc.value) {
-    return
-  }
-
-  const printUnits = dpi / 72
-  const styleUnits = 96 / 72
-  let container: HTMLDivElement
-  let iframe: HTMLIFrameElement
-  let title: string | undefined
-
-  try {
-    container = window.document.createElement('div')
-    container.style.display = 'none'
-    window.document.body.appendChild(container)
-    iframe = await createPrintIframe(container)
-
-    const pageNums =
-      props.page && !allPages
-        ? [props.page]
-        : [...Array(doc.value.numPages + 1).keys()].slice(1)
-
-    await Promise.all(
-      pageNums.map(async (pageNum, i) => {
-        const page = await doc.value!.getPage(pageNum)
-        const viewport = page.getViewport({
-          scale: 1,
-          rotation: 0,
-        })
-
-        if (i === 0) {
-          const sizeX = (viewport.width * printUnits) / styleUnits
-          const sizeY = (viewport.height * printUnits) / styleUnits
-          addPrintStyles(iframe, sizeX, sizeY)
-        }
-
-        const canvas = window.document.createElement('canvas')
-        canvas.width = viewport.width * printUnits
-        canvas.height = viewport.height * printUnits
-        container.appendChild(canvas)
-        const canvasClone = canvas.cloneNode() as HTMLCanvasElement
-        iframe.contentWindow!.document.body.appendChild(canvasClone)
-
-        await page.render({
-          canvasContext: canvas.getContext('2d')!,
-          intent: 'print',
-          transform: [printUnits, 0, 0, printUnits, 0, 0],
-          viewport,
-        }).promise
-
-        canvasClone.getContext('2d')!.drawImage(canvas, 0, 0)
-      })
-    )
-
-    if (filename) {
-      title = window.document.title
-      window.document.title = filename
-    }
-
-    iframe.contentWindow?.focus()
-    iframe.contentWindow?.print()
-  } finally {
-    if (title) {
-      window.document.title = title
-    }
-
-    releaseChildCanvases(container!)
-    container!.parentNode?.removeChild(container!)
-  }
-}
-
-/**
  * Renders the PDF document as canvas element(s) and additional layers.
+ * @param signal - Abort signal.
  */
-const render = async () => {
-  if (!doc.value || renderingController?.isAborted) {
+const render = async (signal: AbortSignal) => {
+  if (!doc.value || signal.aborted) {
     return
   }
 
   try {
     let _page: PDFPageProxy | undefined = undefined
+    highlighters.forEach((highlighter) => highlighter.disable())
+    highlighters = []
+
     pageNums.value = props.page
-      ? [props.page]
+      ? Array.isArray(props.page)
+        ? props.page
+        : [props.page]
       : [...Array(doc.value.numPages + 1).keys()].slice(1)
     pageScales.value = Array(pageNums.value.length).fill(1)
 
@@ -255,7 +192,7 @@ const render = async () => {
       pageNums.value.map(async (pageNum, i) => {
         const page = await doc.value!.getPage(pageNum)
         _page = page
-        if (renderingController?.isAborted) {
+        if (signal.aborted) {
           return
         }
 
@@ -270,8 +207,6 @@ const render = async () => {
         const [actualWidth, actualHeight] = getPageDimensions(
           isTransposed ? viewWidth / viewHeight : viewHeight / viewWidth
         )
-        const cssWidth = `${Math.floor(actualWidth)}px`
-        const cssHeight = `${Math.floor(actualHeight)}px`
         const pageWidth = isTransposed ? viewHeight : viewWidth
         const pageScale = actualWidth / pageWidth
         const viewport = page.getViewport({
@@ -283,8 +218,8 @@ const render = async () => {
 
         canvas.id = 'page' + pageNum
         canvas.style.display = 'block'
-        canvas.style.width = cssWidth
-        canvas.style.height = cssHeight
+        canvas.style.width = `${Math.floor(actualWidth)}px`
+        canvas.style.height = `${Math.floor(actualHeight)}px`
 
         const renderTasks = [
           renderPage(
@@ -292,7 +227,8 @@ const render = async () => {
             viewport.clone({
               scale: viewport.scale * window.devicePixelRatio * props.scale,
             }),
-            canvas
+            canvas,
+            signal
           ),
         ]
 
@@ -303,7 +239,8 @@ const render = async () => {
               viewport.clone({
                 dontFlip: true,
               }),
-              div1
+              div1,
+              signal
             )
           )
         }
@@ -315,7 +252,8 @@ const render = async () => {
               viewport.clone({
                 dontFlip: true,
               }),
-              div2 || div1
+              div2 || div1,
+              signal
             )
           )
         }
@@ -323,16 +261,18 @@ const render = async () => {
         return Promise.all(renderTasks)
       })
     )
-    if (!renderingController?.isAborted) {
+
+    if (!signal.aborted) {
       emit('rendered', _page)
     }
   } catch (e) {
+    if (signal.aborted || isCancellationError(e)) {
+      return
+    }
+
     pageNums.value = []
     pageScales.value = []
-
-    if (!renderingController?.isAborted) {
-      emit('rendering-failed', e as Error)
-    }
+    emit('rendering-failed', e as Error)
   }
 }
 
@@ -341,18 +281,22 @@ const render = async () => {
  * @param page - Page proxy.
  * @param viewport - Page viewport.
  * @param canvas - HTML canvas.
+ * @param signal - Abort signal.
  */
 const renderPage = async (
   page: PDFPageProxy,
   viewport: PageViewport,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  signal: AbortSignal
 ) => {
   canvas.width = viewport.width
   canvas.height = viewport.height
-  await page.render({
-    canvasContext: canvas.getContext('2d')!,
-    viewport,
-  }).promise
+  const task = page.render({ canvas, viewport })
+  await runCancellableTask(
+    () => task.promise,
+    () => task.cancel?.(),
+    signal
+  )
 }
 
 /**
@@ -360,28 +304,39 @@ const renderPage = async (
  * @param page - Page proxy.
  * @param viewport - Page viewport.
  * @param container - HTML container.
+ * @param signal - Abort signal.
  */
 const renderPageAnnotationLayer = async (
   page: PDFPageProxy,
   viewport: PageViewport,
-  container: HTMLDivElement
+  container: HTMLDivElement,
+  signal: AbortSignal
 ) => {
+  const annotations = await page.getAnnotations()
+  if (signal.aborted) {
+    return
+  }
+
   emptyElement(container)
-  new AnnotationLayer({
+
+  await new AnnotationLayer({
     accessibilityManager: null,
     annotationCanvasMap: null,
     annotationEditorUIManager: null,
+    annotationStorage: doc.value!.annotationStorage,
+    commentManager: null,
     div: container,
+    linkService: linkService.value!,
     page,
     structTreeLayer: null,
     viewport,
   }).render({
-    annotations: await page.getAnnotations(),
+    annotations,
     div: container,
     imageResourcesPath: props.imageResourcesPath,
     linkService: linkService.value!,
     page,
-    renderForms: false,
+    renderForms: !!props.forms,
     viewport,
   })
 }
@@ -391,18 +346,51 @@ const renderPageAnnotationLayer = async (
  * @param page - Page proxy.
  * @param viewport - Page viewport.
  * @param container - HTML container.
+ * @param signal - Abort signal.
  */
 const renderPageTextLayer = async (
   page: PDFPageProxy,
   viewport: PageViewport,
-  container: HTMLElement
+  container: HTMLElement,
+  signal: AbortSignal
 ) => {
+  const textContentSource = await page.getTextContent()
+  if (signal.aborted) {
+    return
+  }
+
   emptyElement(container)
-  new TextLayer({
+  const textLayer = new TextLayer({
     container,
-    textContentSource: await page.getTextContent(),
+    textContentSource,
     viewport,
-  }).render()
+  })
+  await runCancellableTask(
+    () => textLayer.render(),
+    () => textLayer.cancel?.(),
+    signal
+  )
+  if (signal.aborted) {
+    return
+  }
+
+  const endOfContent = document.createElement('div')
+  endOfContent.className = 'endOfContent'
+  container.append(endOfContent)
+
+  if (props.findController) {
+    const highlighter = new TextHighlighter({
+      findController: props.findController,
+      matchScrolling: props.matchScrolling,
+      pageIndex: page.pageNumber - 1,
+    })
+    highlighter.setTextMapping(
+      textLayer.textDivs,
+      textLayer.textContentItemsStr
+    )
+    highlighter.enable()
+    highlighters.push(highlighter)
+  }
 }
 
 watch(
@@ -423,42 +411,37 @@ watch(
   () => [
     doc.value,
     props.annotationLayer,
+    props.findController,
+    props.forms,
     props.height,
     props.imageResourcesPath,
+    props.matchScrolling,
     props.page,
     props.rotation,
     props.scale,
     props.textLayer,
     props.width,
   ],
-  async ([newDoc]) => {
+  ([newDoc], _, onCleanup) => {
     if (newDoc) {
-      if (renderingController) {
-        renderingController.isAborted = true
-        await renderingController.promise
-      }
-
-      releaseChildCanvases(root.value)
-      renderingController = {
-        isAborted: false,
-        promise: render(),
-      }
-
-      await renderingController.promise
-      renderingController = null
+      const controller = new AbortController()
+      onCleanup(() => controller.abort())
+      render(controller.signal)
     }
   },
   { immediate: true }
 )
 
 onBeforeUnmount(() => {
+  highlighters.forEach((highlighter) => highlighter.disable())
   releaseChildCanvases(root.value)
 })
 
 defineExpose({
   doc,
   download,
-  print,
+  print: (dpi?: number, filename?: string, allPages = false) =>
+    print(dpi, filename, allPages ? undefined : props.page),
 })
 </script>
 
@@ -476,7 +459,9 @@ defineExpose({
         :id="id && `${id}-${pageNum}`"
         class="vue-pdf-embed__page"
         :style="{
-          '--scale-factor': pageScales[i],
+          '--scale-round-x': '1px',
+          '--scale-round-y': '1px',
+          '--total-scale-factor': pageScales[i],
           position: 'relative',
         }"
       >

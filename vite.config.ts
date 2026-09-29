@@ -1,65 +1,96 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
+import copy, { type CopyOptions } from 'rollup-plugin-copy'
 import vue from '@vitejs/plugin-vue'
 import copy from 'rollup-plugin-copy'
-import CleanCSS from 'clean-css'
-import type { RollupOptions } from 'rollup'
-import { resolve } from 'path'
+import postcss from 'postcss'
+import cssnano from 'cssnano'
+import selectorParser from 'postcss-selector-parser'
 
-export const rollupOptions: RollupOptions = {
-  external: ['pdfjs-dist', 'vue'],
-  output: {
-    globals: {
-      'pdfjs-dist': 'pdfjsLib',
-      vue: 'Vue',
+const cssCopyOptions: CopyOptions = {
+  hook: 'writeBundle',
+  targets: ['annotationLayer', 'textLayer'].map((layer) => ({
+    src: 'node_modules/pdfjs-dist/web/pdf_viewer.css',
+    dest: 'dist/styles',
+    rename: `${layer}.css`,
+    transform: async (contents) => {
+      const commonAtRules = new Map<string, Map<string, postcss.AtRule>>()
+      const result = postcss.root()
+      const targets = new Set([
+        '[data-main-rotation="90"]',
+        '[data-main-rotation="180"]',
+        '[data-main-rotation="270"]',
+        `.${layer}`,
+      ])
+
+      postcss.parse(contents.toString()).walkRules((rule: postcss.Rule) => {
+        let hasTarget = false
+        selectorParser((selectors) => {
+          hasTarget ||= selectors.some(
+            (selector) =>
+              (selector.first.type !== 'attribute' || selector.length === 1) &&
+              targets.has(selector.first.toString())
+          )
+        }).processSync(rule.selector)
+
+        if (hasTarget) {
+          let container: postcss.Root | postcss.AtRule = result
+
+          const ancestorAtRules: Array<{ name: string; params: string }> = []
+          for (let p = rule.parent; p?.type === 'atrule'; p = p.parent) {
+            ancestorAtRules.unshift({ name: p.name, params: p.params })
+          }
+
+          for (const { name, params } of ancestorAtRules) {
+            let parentAtRule = commonAtRules.get(name)
+            if (!parentAtRule) {
+              parentAtRule = new Map()
+              commonAtRules.set(name, parentAtRule)
+            }
+            let atRule = parentAtRule.get(params)
+            if (!atRule) {
+              atRule = postcss.atRule({ name, params })
+              parentAtRule.set(params, atRule)
+              container.append(atRule)
+            }
+            container = atRule
+          }
+
+          container.append(rule.clone())
+        }
+      })
+
+      return (await postcss([cssnano()]).process(result)).css
     },
-    exports: 'named',
-    assetFileNames: (assetInfo) => {
-      switch (assetInfo.name) {
-        case 'style.css':
-          return 'styles/index.css'
-        default:
-          return assetInfo.name as string
-      }
-    },
-    compact: true,
-    inlineDynamicImports: true,
-  },
+  })),
 }
 
 export default defineConfig({
-  plugins: [
-    copy({
-      hook: 'writeBundle',
-      targets: Object.entries({
-        textLayer: [
-          [2936, 2945],
-          [441, 568],
-        ],
-        annotationLayer: [
-          [2936, 2945],
-          [569, 933],
-        ],
-      }).map(([key, ranges]) => ({
-        src: 'node_modules/pdfjs-dist/web/pdf_viewer.css',
-        dest: 'dist/styles',
-        rename: `${key}.css`,
-        transform: (contents) => {
-          const lines = contents.toString().split('\n')
-          const css = ranges.reduce((acc, [start, end]) => {
-            return acc + lines.slice(start, end).join('\n')
-          }, '')
-          return new CleanCSS().minify(css).styles + '\n'
-        },
-      })),
-    }),
-    vue(),
-  ],
+  plugins: [copy(cssCopyOptions), vue()],
   build: {
     lib: {
-      entry: resolve(__dirname, './src/index.ts'),
+      entry: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
       name: 'VuePdfEmbed',
       fileName: 'index',
     },
-    rollupOptions,
+    rollupOptions: {
+      external: ['vue'],
+      output: {
+        globals: {
+          vue: 'Vue',
+        },
+        exports: 'named',
+        assetFileNames: (assetInfo) => {
+          switch (assetInfo.name) {
+            case 'style.css':
+              return 'styles/index.css'
+            default:
+              return assetInfo.name as string
+          }
+        },
+        compact: true,
+        inlineDynamicImports: true,
+      },
+    },
   },
 })
