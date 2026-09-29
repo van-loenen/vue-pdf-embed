@@ -11,7 +11,7 @@ import {
   PasswordResponses,
   getDocument,
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import type { OnProgressParameters, PDFDocumentProxy } from 'pdfjs-dist'
+import type { DocumentInitParameters, OnProgressParameters, PDFDocumentProxy } from 'pdfjs-dist'
 
 import type { PasswordRequestParams, Source } from '../types'
 import {
@@ -49,11 +49,13 @@ export function usePdfDocument({
   onPasswordRequest,
   onProgress,
   source,
+  useCookiesAuth
 }: {
   onError?: (e: Error) => unknown
   onPasswordRequest?: (passwordRequestParams: PasswordRequestParams) => unknown
   onProgress?: (progressParams: OnProgressParameters) => unknown
-  source: ComputedRef<Source> | MaybeRef<Source> | ShallowRef<Source>
+  source: ComputedRef<Source> | MaybeRef<Source> | ShallowRef<Source>,
+  useCookiesAuth: MaybeRef<boolean>
 }) {
   const doc = shallowRef<PDFDocumentProxy | null>(null)
 
@@ -70,7 +72,11 @@ export function usePdfDocument({
     let isStale = false
 
     try {
-      const loadingTask = getDocument(toDocumentInitParams(sourceValue))
+      let options: DocumentInitParameters = {}
+      options.withCredentials = true
+      options.url = sourceValue
+
+      const loadingTask = getDocument(options)
 
       onCleanup(() => {
         isStale = true
