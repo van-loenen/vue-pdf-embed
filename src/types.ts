@@ -1,6 +1,6 @@
 import { getDocument, type PDFDocumentProxy } from 'pdfjs-dist'
 
-type DocumentInitParameters = NonNullable<Parameters<typeof getDocument>[0]>
+export type DocumentInitParameters = NonNullable<Parameters<typeof getDocument>[0]>
 
 export type Source =
   | DocumentInitParameters

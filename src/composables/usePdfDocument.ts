@@ -11,9 +11,9 @@ import {
   PasswordResponses,
   getDocument,
 } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import type { DocumentInitParameters, OnProgressParameters, PDFDocumentProxy } from 'pdfjs-dist'
+import type { OnProgressParameters, PDFDocumentProxy } from 'pdfjs-dist'
 
-import type { PasswordRequestParams, Source } from '../types'
+import type { DocumentInitParameters, PasswordRequestParams, Source } from '../types'
 import {
   addPrintStyles,
   createPrintIframe,
@@ -25,7 +25,7 @@ import {
 
 const toDocumentInitParams = (
   source: Exclude<Source, PDFDocumentProxy | null>
-): Parameters<typeof getDocument>[0] => {
+): DocumentInitParameters => {
   if (typeof source === 'string' || source instanceof URL) {
     return { url: source }
   }
@@ -49,13 +49,11 @@ export function usePdfDocument({
   onPasswordRequest,
   onProgress,
   source,
-  useCookiesAuth
 }: {
   onError?: (e: Error) => unknown
   onPasswordRequest?: (passwordRequestParams: PasswordRequestParams) => unknown
   onProgress?: (progressParams: OnProgressParameters) => unknown
   source: ComputedRef<Source> | MaybeRef<Source> | ShallowRef<Source>,
-  useCookiesAuth: MaybeRef<boolean>
 }) {
   const doc = shallowRef<PDFDocumentProxy | null>(null)
 
@@ -72,9 +70,8 @@ export function usePdfDocument({
     let isStale = false
 
     try {
-      let options: DocumentInitParameters = {}
+      const options = toDocumentInitParams(sourceValue)
       options.withCredentials = true
-      options.url = sourceValue
 
       const loadingTask = getDocument(options)
 

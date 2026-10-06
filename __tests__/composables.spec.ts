@@ -84,7 +84,7 @@ describe('usePdfDocument', () => {
       const { app, result } = withSetup(() => usePdfDocument({ source }))
 
       await flushPromises()
-      expect(mockGetDocument).toHaveBeenCalledWith({ url: source.value })
+      expect(mockGetDocument).toHaveBeenCalledWith({ url: source.value, withCredentials: true })
       expect(result.doc.value).toBe(mockDoc)
       app.unmount()
     })
