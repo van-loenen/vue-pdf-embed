@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.lib.json",
+  "include": ["env.d.ts", "global.d.ts", "src/**/*", "dev/**/*"],
+  "compilerOptions": {
+    "composite": true
+  }
+}
